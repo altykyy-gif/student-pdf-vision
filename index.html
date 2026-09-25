@@ -571,16 +571,27 @@
         async function handlePdfUpload(e) {
             const file = e.target.files[0]; if (!file) return;
             if (file.type !== 'application/pdf' && !file.name.toLowerCase().endsWith('.pdf')) { setPdfStatus('الرجاء اختيار ملف PDF صحيح.', 'error'); return; }
-            setPdfStatus('جارٍ إرسال PDF إلى محلل Gemini الآمن…'); document.getElementById('pdfResults').classList.add('hidden');
+            setPdfStatus('جارٍ تجهيز صفحات PDF للتحليل البصري…'); document.getElementById('pdfResults').classList.add('hidden');
             try {
-                const body = new FormData(); body.append('file', file);
+                const pdfEngine = window.pdfjsLib || pdfjsLib;
+                pdfEngine.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+                const pdf = await pdfEngine.getDocument({ data: new Uint8Array(await file.arrayBuffer()) }).promise;
                 const apiBase = (window.PDF_API_URL || '').replace(/\/$/, '');
-                const response = await fetch(`${apiBase}/api/extract`, { method: 'POST', body });
-                const result = await response.json();
-                if (!response.ok || !result.ok) throw new Error(result.error || 'فشل تحليل PDF');
-                pdfStudents = result.students;
+                const records = [];
+                for (let pageNumber = 1; pageNumber <= pdf.numPages; pageNumber++) {
+                    setPdfStatus(`جارٍ تحليل الصفحة ${pageNumber} من ${pdf.numPages} عبر Gemini…`, 'warn');
+                    const page = await pdf.getPage(pageNumber); const viewport = page.getViewport({ scale: 2.5 });
+                    const canvas = document.createElement('canvas'); canvas.width = viewport.width; canvas.height = viewport.height;
+                    await page.render({ canvasContext: canvas.getContext('2d'), viewport }).promise;
+                    const response = await fetch(`${apiBase}/api/extract-page`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ imageData: canvas.toDataURL('image/png'), pageNumber, totalPages: pdf.numPages }) });
+                    const result = await response.json();
+                    if (!response.ok || !result.ok) throw new Error(result.error || 'فشل تحليل صفحة PDF');
+                    records.push(...(result.records || []));
+                }
+                if (!records.length) throw new Error('لم يتم العثور على أي سجل طالب صالح في ملف PDF');
+                pdfStudents = records;
                 batchStudentsList = pdfStudents.map(s => s.name); document.getElementById('batchPrintBtn').classList.remove('hidden'); document.getElementById('batchWarning').classList.remove('hidden');
-                renderPdfResults(); showPdfTools(); selectPdfStudent(0); setPdfStatus(`تم تحليل PDF بصريًا وإرجاع ${result.count} سجلًا بعد التحقق الكامل.`, 'ok');
+                renderPdfResults(); showPdfTools(); selectPdfStudent(0); setPdfStatus(`تم تحليل PDF بصريًا وإرجاع ${pdfStudents.length} سجلًا بعد التحقق.`, 'ok');
             } catch (error) {
                 console.error(error); setPdfStatus(`تعذّر تحليل الملف: ${error.message}`, 'error');
             }

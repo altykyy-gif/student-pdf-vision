@@ -1,3 +1,2 @@
-// عدّل هذا الرابط إلى عنوان خادم app.py المنشور لديك.
-// لا تضع مفتاح Gemini هنا.
-window.PDF_API_URL = "https://YOUR-BACKEND-DOMAIN.example.com";
+// خادم التحليل الدائم — لا يوجد مفتاح سري داخل هذا الملف.
+window.PDF_API_URL = "https://studentpdf-tdcfxgpr.manus.space";
