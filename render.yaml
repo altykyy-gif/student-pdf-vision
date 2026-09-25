@@ -1,0 +1,16 @@
+services:
+  - type: web
+    name: student-pdf-vision-api
+    runtime: python
+    rootDir: backend
+    buildCommand: pip install -r requirements.txt
+    startCommand: gunicorn app:app --bind 0.0.0.0:$PORT
+    envVars:
+      - key: OPENAI_API_KEY
+        sync: false
+      - key: OPENAI_API_BASE
+        sync: false
+      - key: VISION_MODEL
+        value: gemini-3.1-pro-preview
+      - key: FRONTEND_ORIGIN
+        sync: false
